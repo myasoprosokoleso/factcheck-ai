@@ -1,0 +1,56 @@
+name: factcheck-ai
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: factcheck
+      POSTGRES_USER: factcheck
+      POSTGRES_PASSWORD: factcheck
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U factcheck -d factcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    image: factcheck-ai:local
+    build:
+      context: .
+    command: ["migrate", "up"]
+    environment:
+      POSTGRES_DSN: postgres://factcheck:factcheck@postgres:5432/factcheck?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  factcheck:
+    image: factcheck-ai:local
+    command: ["serve"]
+    env_file: .env
+    environment:
+      POSTGRES_DSN: postgres://factcheck:factcheck@postgres:5432/factcheck?sslmode=disable
+      TELEGRAM_SESSION_PATH: /var/lib/factcheck/telegram/session.json
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - telegram-data:/var/lib/factcheck
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    stop_grace_period: 30s
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  telegram-data:

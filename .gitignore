@@ -1,0 +1,6 @@
+.env
+.vscode/
+bin/
+coverage.out
+*.session.json
+*.log
